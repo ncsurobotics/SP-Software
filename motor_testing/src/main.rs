@@ -1,5 +1,4 @@
 use mavio::default_dialect::enums::mav_frame;
-use mavio::dialects::Common;
 use mavio::prelude::*;
 use mavio::default_dialect as dialect;
 use dialect::enums::{MavAutopilot, MavModeFlag, MavState, MavType, MavCmd};
@@ -36,9 +35,8 @@ use embedded_io_adapters;
 fn main() {
     // Create a TCP client sender
     let serial = serialport::new("/dev/cu.usbmodem21101", 57600).open().unwrap();
-
-    let mut sender = Sender::new(StdIoWriter::new(serial));
-    let mut receiver = Receiver::versionless(StdIoReader::new(serial));
+    let writer = StdIoWriter::new(serial);
+    let mut sender = Sender::new(writer);
 
     // Create an endpoint that represents a MAVLink device speaking `MAVLink 2` protocol
     let endpoint = Endpoint::v2(MavLinkId::new(15, 42));
@@ -50,7 +48,7 @@ fn main() {
     // }
 
     // Create a message
-    let motor_message = dialect::messages::command_long::CommandLong {
+    let message = dialect::messages::command_long::CommandLong {
         target_system: 1,
         target_component: 1,
         command: MavCmd::DoMotorTest,
@@ -63,33 +61,14 @@ fn main() {
         param7: 0.0,
         confirmation: 0,
     };
-    println!("MOTOR MESSAGE:", {motor_message:?});
+    println!("MESSAGE: {message:?}");
 
     for i in 0..10 {
-        // Receive the current MAVLink frame
-        let frame = receiver.recv_frame();
-
-        // Validate MAVLink frame
-        if let Err(err) = frame.validate_checksum::<Minimal>() {
-            eprintln!("Invalid checksum: {err:?}");
-            continue;
-        }
-        match Ok(frame.decode().unwrap()) {
-            Common::Attitude(msg) => {
-                println!("IMU Yaw (rad): {}", msg.yaw);
-                println!("IMU Pitch (rad): {}", msg.pitch);
-                println!("IMU Roll (rad): {}", msg.roll);
-            },
-        }
-        /* if let Ok(Common::Attitude(msg)) = frame.decode() {
-            println!("IMU Yaw (rad): {}", msg.yaw);
-        } */
-
         // Build the next frame for this endpoint.
         // All required fields will be populated, including frame sequence counter.
-        let frame = endpoint.next_frame(&motor_message).unwrap();
+        let frame = endpoint.next_frame(&message).unwrap();
 
-        sender.send(&frame);
+        sender.send(&frame).unwrap();
         println!("FRAME #{} sent: {:#?}", i, frame);
     }
 }
