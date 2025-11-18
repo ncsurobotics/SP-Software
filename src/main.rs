@@ -67,11 +67,15 @@ fn main() {
 
     for i in 0..10 {
         // Receive the current MAVLink frame
-        let frame = receiver.recv_frame();
+        let frame = receiver.recv()?;
 
         // Validate MAVLink frame
         if let Err(err) = frame.validate_checksum::<Minimal>() {
             eprintln!("Invalid checksum: {err:?}");
+            continue;
+        }
+        if let Err(err) = frame.decode() {
+            eprintln!("Invalid message: {err:?}");
             continue;
         }
         match Ok(frame.decode().unwrap()) {
@@ -87,9 +91,9 @@ fn main() {
 
         // Build the next frame for this endpoint.
         // All required fields will be populated, including frame sequence counter.
-        let frame = endpoint.next_frame(&motor_message).unwrap();
+        let frame = endpoint.next_frame(&motor_message)?;
 
-        sender.send(&frame);
+        sender.send(&frame)?;
         println!("FRAME #{} sent: {:#?}", i, frame);
     }
 }

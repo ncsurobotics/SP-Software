@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 embedded-io-adapters = "0.7.0"
-mavio = { version = "0.5.10", features = ["dlct-all", "dlct-common", "std"] }
+mavio = { version = "0.5.10", features = ["dlct-all", "std"] }
 mavlink = "0.16.1"
 serial = "0.4.0"
 serialport = "4.8.1"
