@@ -1,108 +1,103 @@
-use mavio::default_dialect::enums::mav_frame;
-use mavio::dialects::Common;
-use mavio::dialects::common::messages::Attitude;
 use mavio::prelude::*;
-use mavio::default_dialect as dialect;
+use mavio::io::{StdIoReader, StdIoWriter};
+use mavio::{Receiver, Sender, default_dialect as dialect};
+use mavio::dialects::All;
 
-use dialect::enums::{MavAutopilot, MavModeFlag, MavState, MavType, MavCmd};
-use dialect::messages::command_long::{CommandLong, ManualControl};
+use dialect::enums::MavCmd;
+use dialect::messages::{CommandLong, ManualControl, Attitude};
 
-use embedded_io_adapters;
+use serialport::SerialPort;
 
+use tokio::time::{sleep, Duration};
 
-// fn main() -> std::io::Result<()> {
-//     let serial = serialport::new("/dev/cu.usbmodem21101", 57600).open()?;
-
-//     let reader = StdIoReader::new(serial);
-//     let mut receiver = Receiver::versionless(reader);
-
-//     for _i in 0..100 {
-//         let frame = receiver.recv().unwrap();
-
-//         // Validate MAVLink frame
-//         if let Err(err) = frame.validate_checksum::<Ardupilotmega>() {
-//             eprintln!("Invalid checksum: {err:?}");
-//             continue;
-//         }
-
-//         // Decode and handle Heartbeat messages
-//         if let Ok(Ardupilotmsega::Heartbeat(msg)) = frame.decode() {
-//             println!(
-//                 "HEARTBEAT #{}: mavlink_version={:#?}",
-//                 frame.sequence(),
-//                 msg.mavlink_version,
-//             );
-//         }
-//     }
-
-//     Ok(())
-// }
-// hi there
 fn main() {
-    // Create a TCP client sender
+    // Create a serial client sender
     let serial = serialport::new("/dev/cu.usbmodem21101", 57600).open().unwrap();
-
-    let mut sender = Sender::new(StdIoWriter::new(serial));
-    let mut receiver = Receiver::versioned(StdIoReader::new(serial), Version::V2);
-
     // Create an endpoint that represents a MAVLink device speaking `MAVLink 2` protocol
     let endpoint = Endpoint::v2(MavLinkId::new(15, 42));
 
-    // Create a message
-    let motor_message = CommandLong {
-        target_system: 1,
-        target_component: 1,
-        command: MavCmd::DoMotorTest,
-        param1: 1.0,
-        param2: 0.0,
-        param3: 10.0,
-        param4: 0.0,
-        param5: 1.0,
-        param6: 0.0,
-        param7: 0.0,
-        confirmation: 0,
-    };
-    println!("MOTOR MESSAGE:", {motor_message:?});
+    let i = 0;       
+    loop {
+        sender_periodic(serial.clone(), endpoint, i);
+        receiver_periodic(serial.clone(), endpoint, i);
+        i += 1;
+    }
+}
 
-    let move_mesage = ManualControl {
-        target: 1,
-        x: 0,
-        y: 0,
-        z: 500,
-        r: 0,
-        buttons: 0,
-    };
+async fn sender_periodic(serial: Box<dyn SerialPort>, endpoint: Endpoint<V2>, index: usize) {
+    let frames = [
+        ("Motor Test",
+            endpoint.next_frame(&CommandLong {
+                target_system: 1,
+                target_component: 1,
+                command: MavCmd::DoMotorTest,
+                param1: 1.0,
+                param2: 0.0,
+                param3: 10.0,
+                param4: 0.0,
+                param5: 1.0,
+                param6: 0.0,
+                param7: 0.0,
+                confirmation: 0
+            }).unwrap()
+        ),
+        ("Manual Control", 
+            endpoint.next_frame(&ManualControl {
+                target: 1,
+                x: 0,
+                y: 0,
+                z: 0,
+                r: 0,
+                buttons: 0,
+                buttons2: todo!(),
+                enabled_extensions: todo!(),
+                s: todo!(),
+                t: todo!(),
+                aux1: todo!(),
+                aux2: todo!(),
+                aux3: todo!(),
+                aux4: todo!(),
+                aux5: todo!(),
+                aux6: todo!()
+            }).unwrap()
+        )
+    ];
 
-    for i in 0..10 {
-        // Receive the current MAVLink frame
-        let frame = receiver.recv()?;
+    let sender = Sender::new::<V2>(StdIoWriter::new(serial));
+    for frame in frames.iter() {
+        // Send the frames over the serial connection to the endpoint device
+        sender.send(&frame.1).unwrap();
+        println!("{} frame #{} sent: {:#?}", frame.0, index, frame.1);
+        sleep(Duration::from_millis(1000)).await;
+    }
 
-        // Validate MAVLink frame
-        if let Err(err) = frame.validate_checksum::<Minimal>() {
-            eprintln!("Invalid checksum: {err:?}");
-            continue;
+}
+
+async fn receiver_periodic(serial: Box<dyn SerialPort>, endpoint: Endpoint<V2>, index: usize) {
+    // Create MAVLink sender and receiver over the serial connection
+    let mut receiver = Receiver::versioned(StdIoReader::new(serial), V2);
+
+    // Receive the current MAVLink frame
+    let frame = receiver.recv().unwrap();
+    let message_result = frame.decode_message();
+
+    // Validate MAVLink frame
+    if let Err(err) = frame.validate_checksum::<All>() {
+        eprintln!("Invalid checksum: {err:?}");
+        return;
+    }
+    if let Err(err) = message_result {
+        eprintln!("Invalid message: {err:?}");
+        return;
+    }
+
+    match frame.message_id() {
+        Attitude::ID => {
+            let message: Attitude = message_result.unwrap();
+            println!("IMU Yaw (rad): {}", message.yaw);
+            println!("IMU Pitch (rad): {}", message.pitch);
+            println!("IMU Roll (rad): {}", message.roll);
         }
-        if let Err(err) = frame.decode() {
-            eprintln!("Invalid message: {err:?}");
-            continue;
-        }
-        match frame.message_id() {
-            Attitude::ID => {
-                let message = frame.decode_message::<Attitude>().unwrap();
-                println!("IMU Yaw (rad): {}", msg.yaw);
-                println!("IMU Pitch (rad): {}", msg.pitch);
-                println!("IMU Roll (rad): {}", msg.roll);
-            }
-            _ => {}
-        }
-
-        // TODO: Figure out list syntax for objects
-        let frames = Vec::with_capacity(2);
-        // Build the next frame for this endpoint.
-        // All required fields will be populated, including frame sequence counter.
-        frames[0] = endpoint.next_frame(&motor_message)?;
-
-        sender.send(&frame)?;
-        println!("FRAME #{} sent: {:#?}", i, frame);
+        _ => {}
     }
 }
