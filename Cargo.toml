@@ -1,0 +1,8 @@
+[package]
+name = "SP-Software"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+sw8s_rust = { git = "https://github.com/ncsurobotics/SW8S-Rust.git", version = "0.1.0" }
+tokio = "1.49.0"
