@@ -1,4 +1,4 @@
-use sw8s_rust_lib::comms::control_board::ControlBoard;
+use sw9s_lib::comms::control_board::ControlBoard;
 use tokio::io::WriteHalf;
 
 #[tokio::main]
