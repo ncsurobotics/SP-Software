@@ -1,0 +1,8 @@
+[package]
+name = "leds"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+smart-leds = "0.4.0"
+ws2812-spi = "0.5.1"
