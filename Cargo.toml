@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 sw9s = { git = "https://github.com/ncsurobotics/SW9S.git", version = "0.1.0", default-features = false, features = ["comms"] }
 tokio = "1.49.0"
+tokio-serial = "5.4.5"
