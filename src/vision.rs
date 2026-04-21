@@ -6,14 +6,14 @@ use sw9s_lib::comms::control_board::{self, ControlBoard};
 use tokio::io::WriteHalf;
 use tokio::time::sleep;
 use tokio_serial::SerialStream;
-pub struct VisionControl{
+pub struct VisionControl<'a>{
     video_capture: videoio::VideoCapture,
-    board: ControlBoard<WriteHalf<SerialStream>>,
+    board: &'a ControlBoard<WriteHalf<SerialStream>>,
 }
 
-impl VisionControl {
+impl<'a> VisionControl<'a> {
     
-    pub fn new(video_capture: videoio::VideoCapture, board: ControlBoard<WriteHalf<SerialStream>>,) -> Self {
+    pub fn new(video_capture: videoio::VideoCapture, board: &'a ControlBoard<WriteHalf<SerialStream>>,) -> Self {
         Self {video_capture, board} // Returns the struct instance
     }
 
